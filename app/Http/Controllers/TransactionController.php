@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Transaction;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class TransactionController extends Controller
@@ -24,6 +25,29 @@ class TransactionController extends Controller
 
     public function store(Request $request)
     {
+        $user = $request->user();
+
+        // ==================================================
+        // LIMIT TRANSAKSI PAKET BASIC: MAKS 50 / BULAN
+        // ==================================================
+        if ($user->isBasic()) {
+            $month = now()->format('Y-m');
+
+            $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+            $end   = Carbon::createFromFormat('Y-m', $month)->endOfMonth();
+
+            $countThisMonth = Transaction::where('user_id', $user->id)
+                ->whereBetween('transaction_date', [$start, $end])
+                ->count();
+
+            if ($countThisMonth >= 50) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'Paket Basic dibatasi 50 transaksi per bulan. Upgrade ke Pro untuk unlimited.');
+            }
+        }
+
+        // Validasi input
         $data = $request->validate([
             'type' => 'required|in:income,expense',
             'category' => 'nullable|string|max:100',
@@ -32,11 +56,12 @@ class TransactionController extends Controller
             'transaction_date' => 'required|date',
         ]);
 
-        $data['user_id'] = $request->user()->id;
+        $data['user_id'] = $user->id;
 
         Transaction::create($data);
 
-        return redirect()->route('transactions.index')->with('success', 'Transaksi berhasil ditambahkan.');
+        return redirect()->route('transactions.index')
+            ->with('success', 'Transaksi berhasil ditambahkan.');
     }
 
     public function edit(Request $request, Transaction $transaction)

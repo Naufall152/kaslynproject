@@ -3,14 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TransactionController;
-
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-| Routes for Kaslyn Web Application
-|--------------------------------------------------------------------------
-*/
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\MidtransController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,27 +26,83 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 | USER AREA (UKM)
 |--------------------------------------------------------------------------
-| - Dashboard
+| - Dashboard (boleh tanpa subscription)
+| - Subscription (plans)
 | - Profile
-| - Transaksi Keuangan (CRUD)
+| - Protected features (Reports + Transactions)
 */
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // Dashboard user
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
+    // Dashboard user (ringkasan, upsell subscribe)
+    Route::get('/dashboard', [ReportController::class, 'dashboard'])->name('dashboard');
 
-    // Profile management (Laravel Breeze)
+    // ==========================
+    // SUBSCRIPTION
+    // ==========================
+    Route::get('/subscribe', [SubscriptionController::class, 'plans'])
+        ->name('subscriptions.plans');
+
+    Route::post('/subscribe', [SubscriptionController::class, 'subscribe'])
+        ->name('subscriptions.subscribe');
+
+    // Profile management
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // ==========================
-    // TRANSAKSI KEUANGAN (CRUD)
+    // PROTECTED FEATURES (SUB AKTIF)
     // ==========================
-    Route::resource('transactions', TransactionController::class)
-        ->except(['show']);
+    Route::middleware(['sub.active'])->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | REPORTING (BASIC vs PRO)
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('reports')->name('reports.')->group(function () {
+
+            // BASIC & PRO → laporan harian
+            Route::get('/daily', [ReportController::class, 'daily'])
+                ->name('daily');
+
+            // PRO ONLY
+            Route::middleware(['sub.pro'])->group(function () {
+                Route::get('/profit-loss', [ReportController::class, 'profitLoss'])
+                    ->name('profit_loss');
+
+                Route::get('/yearly', [ReportController::class, 'yearly'])
+                    ->name('yearly');
+
+                Route::get('/export/csv', [ReportController::class, 'exportCsv'])
+                    ->name('export_csv');
+
+                Route::get('/export/pdf', [ReportController::class, 'exportPdf'])
+                    ->name('export_pdf');
+            });
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | TRANSAKSI KEUANGAN
+        |--------------------------------------------------------------------------
+        | - Basic: limit 50/bulan (controller)
+        | - Pro  : unlimited
+        */
+        Route::resource('transactions', TransactionController::class)
+            ->except(['show']);
+    });
+
+    // ==========================
+    // MIDTRANS (PRO ONLY)
+    // ==========================
+    Route::middleware(['sub.active', 'sub.pro'])->group(function () {
+        Route::post('/midtrans/pay', [MidtransController::class, 'pay'])
+            ->name('midtrans.pay');
+
+        Route::post('/midtrans/callback', [MidtransController::class, 'callback'])
+            ->name('midtrans.callback');
+    });
 });
 
 
@@ -59,23 +110,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
 |--------------------------------------------------------------------------
 | ADMIN AREA
 |--------------------------------------------------------------------------
-| - Admin Dashboard
 */
 Route::middleware(['auth', 'role:admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
-
         Route::get('/dashboard', function () {
             return view('admin.dashboard');
         })->name('dashboard');
-});
+    });
 
 
 /*
 |--------------------------------------------------------------------------
 | AUTH ROUTES
 |--------------------------------------------------------------------------
-| Login, Register, Logout, Forgot Password, dll
 */
 require __DIR__ . '/auth.php';
