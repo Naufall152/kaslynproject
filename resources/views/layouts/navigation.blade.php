@@ -14,7 +14,7 @@
                     </span>
                 </a>
 
-                {{-- Menu --}}
+                {{-- MENU DESKTOP --}}
                 <div class="hidden sm:flex gap-6">
                     <x-nav-link
                         :href="route('dashboard')"
@@ -28,6 +28,14 @@
                         :active="request()->routeIs('transactions.*')"
                         class="text-slate-600 hover:text-emerald-700 font-medium">
                         Transaksi
+                    </x-nav-link>
+
+                    {{-- LANGGANAN --}}
+                    <x-nav-link
+                        :href="route('subscriptions.plans')"
+                        :active="request()->routeIs('subscriptions.*')"
+                        class="text-slate-600 hover:text-emerald-700 font-medium">
+                        Langganan
                     </x-nav-link>
                 </div>
             </div>
@@ -97,6 +105,13 @@
                 :href="route('transactions.index')"
                 :active="request()->routeIs('transactions.*')">
                 Transaksi
+            </x-responsive-nav-link>
+
+            {{-- LANGGANAN --}}
+            <x-responsive-nav-link
+                :href="route('subscriptions.plans')"
+                :active="request()->routeIs('subscriptions.*')">
+                Langganan
             </x-responsive-nav-link>
         </div>
 
