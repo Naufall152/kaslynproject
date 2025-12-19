@@ -3,25 +3,87 @@
 namespace App\Http\Controllers;
 
 use App\Models\Transaction;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Barryvdh\DomPDF\Facade\Pdf;
-
 
 class ReportController extends Controller
 {
     public function dashboard(Request $request)
     {
-        $userId = $request->user()->id;
+        $user = $request->user();
+        $userId = $user->id;
 
-        // filter bulan (opsional)
-        $month = $request->get('month', now()->format('Y-m'));
-        [$year, $mon] = explode('-', $month);
+        // basic|pro|null (kalau belum subscribe bisa null)
+        $plan = $user->activePlan();
 
-        $start = Carbon::createFromDate((int) $year, (int) $mon, 1)->startOfDay();
-        $end = $start->copy()->endOfMonth()->endOfDay();
+        /**
+         * BASIC: ringkasan & chart = hari ini
+         * PRO  : ringkasan = bulan terpilih, chart = 6 bulan terakhir
+         */
+        if ($plan === 'basic') {
+            $start = now()->startOfDay();
+            $end   = now()->endOfDay();
 
+            // untuk kebutuhan view saja (kalau kamu masih pakai input month di blade)
+            $month = now()->format('Y-m');
+
+            // Chart basic hanya 1 titik (hari ini)
+            $chartLabels = [now()->format('d M Y')];
+
+            $todayIncome = (float) Transaction::where('user_id', $userId)
+                ->where('type', 'income')
+                ->whereBetween('transaction_date', [$start, $end])
+                ->sum('amount');
+
+            $todayExpense = (float) Transaction::where('user_id', $userId)
+                ->where('type', 'expense')
+                ->whereBetween('transaction_date', [$start, $end])
+                ->sum('amount');
+
+            $chartIncome  = [$todayIncome];
+            $chartExpense = [$todayExpense];
+        } else {
+            // PRO (atau null) → boleh pilih bulan
+            $month = $request->get('month', now()->format('Y-m'));
+
+            try {
+                [$year, $mon] = explode('-', $month);
+                $start = Carbon::createFromDate((int) $year, (int) $mon, 1)->startOfDay();
+                $end   = $start->copy()->endOfMonth()->endOfDay();
+            } catch (\Throwable $e) {
+                $month = now()->format('Y-m');
+                $start = now()->startOfMonth()->startOfDay();
+                $end   = now()->endOfMonth()->endOfDay();
+            }
+
+            // Chart: 6 bulan terakhir
+            $months = collect(range(0, 5))->map(fn ($i) => now()->subMonths(5 - $i));
+
+            $chartLabels = [];
+            $chartIncome = [];
+            $chartExpense = [];
+
+            foreach ($months as $m) {
+                $s = $m->copy()->startOfMonth()->startOfDay();
+                $e = $m->copy()->endOfMonth()->endOfDay();
+
+                $chartLabels[] = $m->format('M Y');
+
+                $chartIncome[] = (float) Transaction::where('user_id', $userId)
+                    ->where('type', 'income')
+                    ->whereBetween('transaction_date', [$s, $e])
+                    ->sum('amount');
+
+                $chartExpense[] = (float) Transaction::where('user_id', $userId)
+                    ->where('type', 'expense')
+                    ->whereBetween('transaction_date', [$s, $e])
+                    ->sum('amount');
+            }
+        }
+
+        // Ringkasan mengikuti range start-end (basic=hari ini, pro=bukan)
         $income = Transaction::where('user_id', $userId)
             ->where('type', 'income')
             ->whereBetween('transaction_date', [$start, $end])
@@ -34,33 +96,7 @@ class ReportController extends Controller
 
         $balance = $income - $expense;
 
-        // Chart: tren 6 bulan terakhir
-        $months = collect(range(0, 5))->map(function ($i) {
-            return now()->subMonths(5 - $i)->format('Y-m');
-        });
-
-        $chartLabels = [];
-        $chartIncome = [];
-        $chartExpense = [];
-
-        foreach ($months as $m) {
-            [$y, $mo] = explode('-', $m);
-            $s = Carbon::createFromDate((int) $y, (int) $mo, 1)->startOfDay();
-            $e = $s->copy()->endOfMonth()->endOfDay();
-
-            $chartLabels[] = $s->format('M Y');
-
-            $chartIncome[] = (float) Transaction::where('user_id', $userId)
-                ->where('type', 'income')
-                ->whereBetween('transaction_date', [$s, $e])
-                ->sum('amount');
-
-            $chartExpense[] = (float) Transaction::where('user_id', $userId)
-                ->where('type', 'expense')
-                ->whereBetween('transaction_date', [$s, $e])
-                ->sum('amount');
-        }
-
+        // Transaksi terbaru (tidak terikat filter)
         $latest = Transaction::where('user_id', $userId)
             ->orderByDesc('transaction_date')
             ->orderByDesc('id')
@@ -75,18 +111,65 @@ class ReportController extends Controller
             'month',
             'chartLabels',
             'chartIncome',
-            'chartExpense'
+            'chartExpense',
+            'plan',
+            'start',
+            'end'
         ));
     }
 
+    /**
+     * Reports - Daily (untuk basic & pro)
+     * Route kamu: reports/daily
+     */
+    public function daily(Request $request)
+    {
+        $userId = $request->user()->id;
+
+        $date = $request->get('date', now()->toDateString());
+        try {
+            $start = Carbon::parse($date)->startOfDay();
+            $end   = Carbon::parse($date)->endOfDay();
+        } catch (\Throwable $e) {
+            $start = now()->startOfDay();
+            $end   = now()->endOfDay();
+            $date  = now()->toDateString();
+        }
+
+        $income = Transaction::where('user_id', $userId)->where('type', 'income')
+            ->whereBetween('transaction_date', [$start, $end])->sum('amount');
+
+        $expense = Transaction::where('user_id', $userId)->where('type', 'expense')
+            ->whereBetween('transaction_date', [$start, $end])->sum('amount');
+
+        $profit = $income - $expense;
+
+        $rows = Transaction::where('user_id', $userId)
+            ->whereBetween('transaction_date', [$start, $end])
+            ->orderByDesc('transaction_date')
+            ->get();
+
+        return view('reports.daily', compact('date', 'start', 'end', 'income', 'expense', 'profit', 'rows'));
+    }
+
+    /**
+     * Reports - Profit/Loss (PRO only)
+     * Route kamu: reports/profit-loss
+     */
     public function profitLoss(Request $request)
     {
         $userId = $request->user()->id;
-        $month = $request->get('month', now()->format('Y-m'));
-        [$year, $mon] = explode('-', $month);
 
-        $start = Carbon::createFromDate((int) $year, (int) $mon, 1)->startOfDay();
-        $end = $start->copy()->endOfMonth()->endOfDay();
+        $month = $request->get('month', now()->format('Y-m'));
+        try {
+            [$year, $mon] = explode('-', $month);
+            $start = Carbon::createFromDate((int) $year, (int) $mon, 1)->startOfDay();
+            $end   = $start->copy()->endOfMonth()->endOfDay();
+        } catch (\Throwable $e) {
+            $month = now()->format('Y-m');
+            $start = now()->startOfMonth()->startOfDay();
+            $end   = now()->endOfMonth()->endOfDay();
+        }
 
         $income = Transaction::where('user_id', $userId)
             ->where('type', 'income')
@@ -124,14 +207,43 @@ class ReportController extends Controller
         ));
     }
 
+    /**
+     * Reports - Yearly (PRO only)
+     * Route kamu: reports/yearly
+     */
+    public function yearly(Request $request)
+    {
+        $userId = $request->user()->id;
+
+        $year = (int) $request->get('year', now()->year);
+        $start = Carbon::create($year, 1, 1)->startOfDay();
+        $end   = Carbon::create($year, 12, 31)->endOfDay();
+
+        $income = Transaction::where('user_id', $userId)->where('type', 'income')
+            ->whereBetween('transaction_date', [$start, $end])->sum('amount');
+
+        $expense = Transaction::where('user_id', $userId)->where('type', 'expense')
+            ->whereBetween('transaction_date', [$start, $end])->sum('amount');
+
+        $profit = $income - $expense;
+
+        return view('reports.yearly', compact('year', 'start', 'end', 'income', 'expense', 'profit'));
+    }
+
     public function exportCsv(Request $request)
     {
         $userId = $request->user()->id;
-        $month = $request->get('month', now()->format('Y-m'));
-        [$year, $mon] = explode('-', $month);
 
-        $start = Carbon::createFromDate((int) $year, (int) $mon, 1)->startOfDay();
-        $end = $start->copy()->endOfMonth()->endOfDay();
+        $month = $request->get('month', now()->format('Y-m'));
+        try {
+            [$year, $mon] = explode('-', $month);
+            $start = Carbon::createFromDate((int) $year, (int) $mon, 1)->startOfDay();
+            $end   = $start->copy()->endOfMonth()->endOfDay();
+        } catch (\Throwable $e) {
+            $month = now()->format('Y-m');
+            $start = now()->startOfMonth()->startOfDay();
+            $end   = now()->endOfMonth()->endOfDay();
+        }
 
         $rows = Transaction::where('user_id', $userId)
             ->whereBetween('transaction_date', [$start, $end])
@@ -157,10 +269,8 @@ class ReportController extends Controller
         $csvContent = stream_get_contents($handle);
         fclose($handle);
 
-        // Simpan lokal (storage/app/reports)
         Storage::disk('local')->put("reports/{$filename}", $csvContent);
 
-        // Upload ke Azure Blob (kalau sudah diset)
         if (config('filesystems.disks.azure')) {
             Storage::disk('azure')->put("reports/{$filename}", $csvContent);
         }
@@ -173,11 +283,17 @@ class ReportController extends Controller
     public function exportPdf(Request $request)
     {
         $userId = $request->user()->id;
-        $month = $request->get('month', now()->format('Y-m'));
-        [$year, $mon] = explode('-', $month);
 
-        $start = Carbon::createFromDate((int) $year, (int) $mon, 1)->startOfDay();
-        $end = $start->copy()->endOfMonth()->endOfDay();
+        $month = $request->get('month', now()->format('Y-m'));
+        try {
+            [$year, $mon] = explode('-', $month);
+            $start = Carbon::createFromDate((int) $year, (int) $mon, 1)->startOfDay();
+            $end   = $start->copy()->endOfMonth()->endOfDay();
+        } catch (\Throwable $e) {
+            $month = now()->format('Y-m');
+            $start = now()->startOfMonth()->startOfDay();
+            $end   = now()->endOfMonth()->endOfDay();
+        }
 
         $income = Transaction::where('user_id', $userId)->where('type', 'income')
             ->whereBetween('transaction_date', [$start, $end])->sum('amount');
@@ -209,15 +325,12 @@ class ReportController extends Controller
         $filename = "kaslyn-report-{$month}-user{$userId}.pdf";
         $pdfBinary = $pdf->output();
 
-        // Simpan lokal
         Storage::disk('local')->put("reports/{$filename}", $pdfBinary);
 
-        // Upload Azure Blob (kalau disk azure sudah diset)
         if (config('filesystems.disks.azure')) {
             Storage::disk('azure')->put("reports/{$filename}", $pdfBinary);
         }
 
         return $pdf->download($filename);
     }
-
 }

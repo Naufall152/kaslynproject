@@ -9,9 +9,7 @@ class SubscriptionController extends Controller
 {
     public function plans()
     {
-        // Paket contoh (nanti bisa diambil dari DB)
-        // Catatan: view kamu sekarang sudah hardcode fitur sesuai tabel,
-        // tapi $plans ini tetap aman kalau masih dipakai.
+        // Opsional: buat ditampilkan di view (kalau view kamu hardcode, tetap aman)
         $plans = [
             [
                 'key' => 'basic',
@@ -32,24 +30,76 @@ class SubscriptionController extends Controller
         return view('subscriptions.plans', compact('plans'));
     }
 
+    /**
+     * ✅ BASIC: langsung aktif tanpa bayar
+     * Route: POST /subscribe/basic  (name: subscriptions.basic)
+     */
+    public function subscribeBasic(Request $request)
+    {
+        $user = $request->user();
+        $durationDays = 30;
+
+        // Ambil subscription aktif (punya kamu: $user->activeSubscription())
+        $active = $user->activeSubscription();
+
+        // Kalau user sudah punya PRO aktif, jangan turunkan ke BASIC (opsional, tapi ini lebih aman)
+        if ($active && $active->plan === 'pro') {
+            return redirect()->route('dashboard')
+                ->with('error', 'Kamu sudah memiliki paket PRO aktif. Tidak bisa downgrade ke BASIC saat masih aktif.');
+        }
+
+        if ($active) {
+            // Kalau sudah BASIC aktif → perpanjang
+            $newEndsAt = $active->ends_at->copy()->addDays($durationDays);
+
+            $active->update([
+                'plan' => 'basic',
+                'ends_at' => $newEndsAt,
+                'status' => 'active',
+            ]);
+
+            return redirect()->route('dashboard')
+                ->with('success', 'Paket BASIC diperpanjang sampai ' . $newEndsAt->format('d M Y H:i'));
+        }
+
+        // Kalau belum ada subscription aktif → buat baru
+        $startsAt = now();
+        $endsAt = now()->addDays($durationDays);
+
+        Subscription::create([
+            'user_id' => $user->id,
+            'plan' => 'basic',
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'status' => 'active',
+        ]);
+
+        return redirect()->route('dashboard')
+            ->with('success', 'Paket BASIC aktif sampai ' . $endsAt->format('d M Y H:i'));
+    }
+
+    /**
+     * 🚫 FLOW LAMA: subscribe basic/pro langsung aktif
+     * Kamu boleh SIMPAN tapi batasi untuk local/testing saja
+     * (supaya user tidak bisa aktifkan PRO tanpa bayar Midtrans)
+     */
     public function subscribe(Request $request)
     {
+        if (!app()->isLocal()) {
+            abort(404);
+        }
+
+        // Kalau masih mau testing, tetap boleh:
         $data = $request->validate([
             'plan' => 'required|in:basic,pro',
         ]);
 
         $user = $request->user();
-
-        // Durasi langganan (bisa dibedakan per plan kalau mau)
         $durationDays = 30;
 
-        // Ambil subscription yang benar-benar aktif (starts_at <= now < ends_at)
         $active = $user->activeSubscription();
 
         if ($active) {
-            // Kalau sudah punya langganan aktif:
-            // - update plan (upgrade/downgrade)
-            // - perpanjang masa aktif dari ends_at saat ini
             $newEndsAt = $active->ends_at->copy()->addDays($durationDays);
 
             $active->update([
@@ -59,10 +109,9 @@ class SubscriptionController extends Controller
             ]);
 
             return redirect()->route('dashboard')
-                ->with('success', 'Langganan diperpanjang sampai ' . $newEndsAt->format('d M Y H:i'));
+                ->with('success', 'Langganan (TEST) diperpanjang sampai ' . $newEndsAt->format('d M Y H:i'));
         }
 
-        // Jika belum ada langganan aktif -> buat baru mulai sekarang
         $startsAt = now();
         $endsAt = now()->addDays($durationDays);
 
@@ -75,6 +124,6 @@ class SubscriptionController extends Controller
         ]);
 
         return redirect()->route('dashboard')
-            ->with('success', 'Langganan aktif sampai ' . $endsAt->format('d M Y H:i'));
+            ->with('success', 'Langganan (TEST) aktif sampai ' . $endsAt->format('d M Y H:i'));
     }
 }

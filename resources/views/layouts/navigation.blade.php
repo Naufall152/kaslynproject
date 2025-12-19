@@ -1,4 +1,8 @@
 <nav x-data="{ open: false }" class="bg-white border-b border-emerald-100 shadow-sm">
+    @php
+        $plan = Auth::user()?->activePlan(); // basic|pro|null
+    @endphp
+
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
 
@@ -44,15 +48,25 @@
             <div class="hidden sm:flex sm:items-center">
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
-                        <button
-                            class="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-emerald-50 transition">
+                        {{-- ✅ Trigger + Badge Plan --}}
+                        <button class="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-emerald-50 transition">
                             <div class="text-sm font-medium text-slate-700">
                                 {{ Auth::user()->name }}
                             </div>
-                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 9l-7 7-7-7" />
+
+                            @if($plan)
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold
+                                    {{ $plan === 'pro' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700' }}">
+                                    {{ strtoupper($plan) }}
+                                </span>
+                            @else
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-yellow-100 text-yellow-800">
+                                    FREE
+                                </span>
+                            @endif
+
+                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                             </svg>
                         </button>
                     </x-slot>
@@ -116,7 +130,22 @@
         </div>
 
         <div class="border-t border-gray-200 px-4 py-3">
-            <div class="text-sm font-medium text-slate-800">{{ Auth::user()->name }}</div>
+            <div class="flex items-center gap-2">
+                <div class="text-sm font-medium text-slate-800">{{ Auth::user()->name }}</div>
+
+                {{-- ✅ Badge Plan Mobile --}}
+                @if($plan)
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold
+                        {{ $plan === 'pro' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700' }}">
+                        {{ strtoupper($plan) }}
+                    </span>
+                @else
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-yellow-100 text-yellow-800">
+                        FREE
+                    </span>
+                @endif
+            </div>
+
             <div class="text-xs text-gray-500">{{ Auth::user()->email }}</div>
 
             <div class="mt-3 space-y-1">
