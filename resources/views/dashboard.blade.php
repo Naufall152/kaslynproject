@@ -173,18 +173,29 @@
             </div>
 
             {{-- CHART: TREN 6 BULAN --}}
+            {{-- CHART --}}
             <div class="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-bold text-slate-900">Tren 6 Bulan Terakhir</h3>
-                    <p class="text-xs text-slate-500">
-                        (Grafik tidak terpengaruh filter bulan)
-                    </p>
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-lg font-bold text-slate-900">
+                        {{ $plan === 'basic' ? 'Tren Hari Ini' : 'Tren 6 Bulan Terakhir' }}
+                    </h3>
+
+                    @if ($plan !== 'basic')
+                        <p class="text-xs text-slate-500">
+                            (Grafik tidak terpengaruh filter bulan)
+                        </p>
+                    @else
+                        <span class="text-xs text-slate-500">
+                            Paket Basic hanya bisa lihat tren hari ini. Upgrade ke Pro untuk bulanan/tahunan.
+                        </span>
+                    @endif
                 </div>
 
                 <div class="mt-4">
                     <canvas id="trendChart" height="90"></canvas>
                 </div>
             </div>
+
 
             {{-- LATEST TRANSACTIONS --}}
             <div class="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
