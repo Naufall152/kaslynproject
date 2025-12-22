@@ -8,22 +8,14 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RoleMiddleware
 {
-    public function handle(Request $request, Closure $next, ?string $role = null): Response
+    public function handle(Request $request, Closure $next, string $role): Response
     {
-        // Kalau middleware tidak diberi parameter role, jangan crash
-        // (Ini juga membantu kalau ada salah pemakaian middleware)
-        if ($role === null) {
-            return $next($request);
+        if (!auth()->check()) {
+            abort(403);
         }
 
-        // Harus login
-        if (!$request->user()) {
-            abort(403, 'Unauthorized');
-        }
-
-        // Cek role
-        if ($request->user()->role !== $role) {
-            abort(403, 'Unauthorized');
+        if (auth()->user()->role !== $role) {
+            abort(403);
         }
 
         return $next($request);

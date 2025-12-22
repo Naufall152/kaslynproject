@@ -6,7 +6,11 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\MidtransController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminTransactionController;
 use App\Http\Controllers\Admin\AdminPlanController;
+
 
 Route::get('/', function () {
     if (auth()->check())
@@ -77,13 +81,29 @@ Route::post('/midtrans/callback', [MidtransController::class, 'callback'])
 // ==========================
 // ADMIN
 // ==========================
-// Route::middleware(['auth', 'role:admin'])
-//     ->prefix('admin')
-//     ->name('admin.')
-//     ->group(function () {
 
-//         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
+Route::middleware(['auth', 'role:admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/dashboard', [AdminDashboardController::class, 'index'])
+            ->name('dashboard');
 
-//         });
+        // // Users + subscription status
+        Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
+        Route::get('/users/{user}', [AdminUserController::class, 'show'])->name('users.show');
+
+        // // Semua transaksi (lintas UKM)
+        Route::get('/transactions', [AdminTransactionController::class, 'index'])->name('transactions.index');
+
+        // // Manajemen paket langganan
+        Route::resource('/plans', AdminPlanController::class)->except(['show'])->names('plans');
+    });
+
+Route::middleware('auth')->get('/redirect-after-login', function () {
+    return auth()->user()->role === 'admin'
+        ? redirect()->route('admin.dashboard')
+        : redirect()->route('dashboard');
+})->name('redirect.after.login');
 
 require __DIR__ . '/auth.php';
