@@ -47,6 +47,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/midtrans/check', [MidtransController::class, 'checkStatus'])
         ->name('midtrans.check');
 
+    Route::post('/midtrans/manual-activate', [MidtransController::class, 'manualActivate'])
+        ->name('midtrans.manual_activate');
+
     // ==========================
     // PROFILE
     // ==========================

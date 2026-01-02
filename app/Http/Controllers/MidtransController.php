@@ -179,9 +179,6 @@ class MidtransController extends Controller
             ? $statusObj
             : json_decode(json_encode($statusObj), true);
 
-        // ✅ DEBUG: tampilkan response Midtrans di browser
-        dd($statusArr);
-
         $trxStatus = $statusArr['transaction_status'] ?? 'pending';
         $paymentType = $statusArr['payment_type'] ?? null;
 
@@ -309,22 +306,92 @@ class MidtransController extends Controller
     }
 
 
+    /**
+     * Manual activate subscription (untuk testing/sandbox)
+     */
+    public function manualActivate(Request $request)
+    {
+        $data = $request->validate([
+            'order_id' => 'required|string',
+        ]);
+
+        $payment = Payment::where('order_id', $data['order_id'])
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        if ($payment->status === 'success') {
+            return response()->json([
+                'message' => 'Subscription sudah aktif',
+                'subscription' => $payment->user->activeSubscription(),
+            ]);
+        }
+
+        // Force activate untuk testing
+        $payment->update(['status' => 'success']);
+        $this->activateSubscription($payment);
+
+        Log::info('MANUAL SUBSCRIPTION ACTIVATION', [
+            'order_id' => $payment->order_id,
+            'user_id' => $payment->user_id,
+            'plan' => $payment->plan,
+        ]);
+
+        return response()->json([
+            'message' => 'Subscription berhasil diaktifkan secara manual',
+            'subscription' => $payment->user->activeSubscription(),
+        ]);
+    }
+
     private function activateSubscription(Payment $payment): void
     {
         $userId = $payment->user_id;
+        $plan = $payment->plan;
         $durationDays = 30;
 
-        // expire subscription aktif sebelumnya
+        // Cek apakah user sudah punya subscription aktif dengan plan yang sama
+        $existingActiveSub = Subscription::where('user_id', $userId)
+            ->where('plan', $plan)
+            ->where('status', 'active')
+            ->where('starts_at', '<=', now())
+            ->where('ends_at', '>', now())
+            ->first();
+
+        if ($existingActiveSub) {
+            // Extend subscription yang sudah ada
+            $existingActiveSub->update([
+                'ends_at' => $existingActiveSub->ends_at->addDays($durationDays),
+            ]);
+
+            Log::info('EXTENDED EXISTING SUBSCRIPTION', [
+                'subscription_id' => $existingActiveSub->id,
+                'user_id' => $userId,
+                'plan' => $plan,
+                'new_end_date' => $existingActiveSub->ends_at,
+            ]);
+
+            return;
+        }
+
+        // Expire semua subscription aktif sebelumnya (yang plan berbeda)
         Subscription::where('user_id', $userId)
             ->where('status', 'active')
             ->update(['status' => 'expired']);
 
-        Subscription::create([
+        // Buat subscription baru
+        $newSubscription = Subscription::create([
             'user_id' => $userId,
-            'plan' => $payment->plan,
+            'plan' => $plan,
             'starts_at' => now(),
             'ends_at' => now()->addDays($durationDays),
             'status' => 'active',
+        ]);
+
+        Log::info('CREATED NEW SUBSCRIPTION', [
+            'subscription_id' => $newSubscription->id,
+            'user_id' => $userId,
+            'plan' => $plan,
+            'start_date' => $newSubscription->starts_at,
+            'end_date' => $newSubscription->ends_at,
         ]);
     }
 }
