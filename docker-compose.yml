@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: dockflix-app
+    container_name: kaslyn-app
     ports:
       - "3010:80"
     env_file:
