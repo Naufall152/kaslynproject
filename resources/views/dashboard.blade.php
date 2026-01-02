@@ -138,10 +138,6 @@
                     </button>
                 </form>
 
-                <a href="{{ route('reports.export_pdf', ['month' => $month]) }}"
-                    class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition">
-                    Export PDF
-                </a>
 
             </div>
 
