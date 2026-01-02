@@ -11,8 +11,8 @@
 
                     <div>
                         <label class="text-sm text-slate-600">Code</label>
-                        <input name="code" value="{{ old('code') }}" class="w-full rounded-lg border px-3 py-2" placeholder="basic / pro">
-                        @error('code')<div class="text-sm text-red-600 mt-1">{{ $message }}</div>@enderror
+                        <input name="key" value="{{ old('key') }}" class="w-full rounded-lg border px-3 py-2" placeholder="basic / pro">
+                        @error('key')<div class="text-sm text-red-600 mt-1">{{ $message }}</div>@enderror
                     </div>
 
                     <div>

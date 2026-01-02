@@ -12,8 +12,8 @@
 
                     <div>
                         <label class="text-sm text-slate-600">Code</label>
-                        <input name="code" value="{{ old('code', $plan->code) }}" class="w-full rounded-lg border px-3 py-2">
-                        @error('code')<div class="text-sm text-red-600 mt-1">{{ $message }}</div>@enderror
+                        <input name="key" value="{{ old('key', $plan->key) }}" class="w-full rounded-lg border px-3 py-2">
+                        @error('key')<div class="text-sm text-red-600 mt-1">{{ $message }}</div>@enderror
                     </div>
 
                     <div>
@@ -46,7 +46,7 @@
 
                     <div>
                         <label class="text-sm text-slate-600">Features (opsional)</label>
-                        <textarea name="features" rows="4" class="w-full rounded-lg border px-3 py-2">{{ old('features', $plan->features) }}</textarea>
+                        <textarea name="features" rows="4" class="w-full rounded-lg border px-3 py-2">{{ old('features', is_array($plan->features) ? implode("\n", $plan->features) : $plan->features) }}</textarea>
                         @error('features')<div class="text-sm text-red-600 mt-1">{{ $message }}</div>@enderror
                     </div>
 

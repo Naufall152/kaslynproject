@@ -34,7 +34,7 @@
                     <tbody class="text-slate-800">
                         @forelse($plans as $plan)
                             <tr class="border-b">
-                                <td class="py-3 pr-4 font-semibold">{{ $plan->code }}</td>
+                                <td class="py-3 pr-4 font-semibold">{{ $plan->key }}</td>
                                 <td class="py-3 pr-4">{{ $plan->name }}</td>
                                 <td class="py-3 pr-4">
                                     Rp {{ number_format((int)$plan->price, 0, ',', '.') }}

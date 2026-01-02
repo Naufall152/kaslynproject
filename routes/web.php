@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminTransactionController;
 use App\Http\Controllers\Admin\AdminPlanController;
+use App\Http\Controllers\Admin\AdminAnalyticsController;
 
 
 Route::get('/', function () {
@@ -98,6 +99,12 @@ Route::middleware(['auth', 'role:admin'])
 
         // // Manajemen paket langganan
         Route::resource('/plans', AdminPlanController::class)->except(['show'])->names('plans');
+
+        // Analytics
+        Route::get('/analytics/visitor-stats', [AdminAnalyticsController::class, 'getVisitorStats'])
+            ->name('analytics.visitor-stats');
+        Route::get('/analytics/detailed', [AdminAnalyticsController::class, 'getDetailedAnalytics'])
+            ->name('analytics.detailed');
     });
 
 Route::middleware('auth')->get('/redirect-after-login', function () {
