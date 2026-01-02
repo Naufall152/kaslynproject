@@ -2,69 +2,40 @@ pipeline {
     agent any
 
     environment {
-        // Nama image yang akan muncul di Docker Hub
-        IMAGE_NAME = "kaslyn-app"
-        // Username Docker Hub Anda
-        DOCKER_HUB_USER = "naufal354"
+        // Mengarahkan Laravel untuk menggunakan SQLite di dalam memori/file sementara
+        // agar tidak terjadi error "Connection Refused" dari MySQL
+        DB_CONNECTION = 'sqlite'
+        DB_DATABASE = 'database/database.sqlite'
     }
 
     stages {
-        stage('Checkout') {
+        stage('1. Checkout Code') {
             steps {
-                // Mengambil kode terbaru dari repositori GitHub
-                checkout scm
+                git branch: '25-alternatif-login-lewat-google', url: 'https://github.com/Naufall152/kaslynproject.git'
             }
         }
 
-        stage('Prepare .env') {
+        stage('2. Install Dependencies') {
             steps {
-                // Menyalin file contoh .env untuk keperluan build di Windows
+                bat 'composer install --no-interaction --prefer-dist'
+                bat 'npm install'
+            }
+        }
+
+        stage('3. Setup Environment') {
+            steps {
                 bat 'copy .env.example .env'
+                bat 'php artisan key:generate'
+                // Membuat file database kosong untuk SQLite
+                bat 'if not exist "database\\database.sqlite" type nul > database\\database.sqlite'
+                bat 'php artisan migrate --force'
             }
         }
 
-        stage('Docker Login') {
+        stage('4. Build Assets') {
             steps {
-                // Menggunakan usernamePassword karena kredensial Anda bertipe 'Username with password'
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
-                                                 usernameVariable: 'DOCKER_USER',
-                                                 passwordVariable: 'DOCKER_PASS')]) {
-                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
-                }
+                bat 'npm run build'
             }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                // Membangun image Docker dengan tag nomor build Jenkins dan tag 'latest'
-                bat "docker build -t %DOCKER_HUB_USER%/%IMAGE_NAME%:%BUILD_NUMBER% ."
-                bat "docker build -t %DOCKER_HUB_USER%/%IMAGE_NAME%:latest ."
-            }
-        }
-
-        stage('Push to Registry') {
-            steps {
-                // Mengirim image yang telah berhasil dibangun ke Docker Hub
-                bat "docker push %DOCKER_HUB_USER%/%IMAGE_NAME%:%BUILD_NUMBER%"
-                bat "docker push %DOCKER_HUB_USER%/%IMAGE_NAME%:latest"
-            }
-        }
-
-        stage('Cleanup') {
-            steps {
-                // Menghapus image lokal di server Jenkins agar ruang penyimpanan tidak penuh
-                bat "docker rmi %DOCKER_HUB_USER%/%IMAGE_NAME%:%BUILD_NUMBER%"
-                bat "docker rmi %DOCKER_HUB_USER%/%IMAGE_NAME%:latest"
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'Pipeline sukses! Image FlixPlay sudah tersedia secara online di Docker Hub.'
-        }
-        failure {
-            echo 'Pipeline gagal. Pastikan Token Docker Hub di Jenkins (ID: dockerhub-credentials) sudah benar dan Docker Desktop aktif.'
         }
     }
 }
