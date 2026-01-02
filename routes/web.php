@@ -77,7 +77,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // ✅ Webhook Midtrans harus di luar auth
 Route::post('/midtrans/callback', [MidtransController::class, 'callback'])
-    ->name('midtrans.callback');
+    ->name('midtrans.callback')
+    ->middleware('throttle:webhook'); // Rate limiting untuk webhook
+
+// Health check untuk Azure
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'timestamp' => now()->toISOString(),
+        'environment' => app()->environment(),
+    ]);
+})->name('health');
 
 // ==========================
 // ADMIN

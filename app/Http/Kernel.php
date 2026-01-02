@@ -64,6 +64,7 @@ class Kernel extends HttpKernel
         'precognitive' => \Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
         'signed' => \App\Http\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
+        'throttle:webhook' => \Illuminate\Routing\Middleware\ThrottleRequests::class.':60,1', // 60 requests per minute for webhooks
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'sub.active' => \App\Http\Middleware\EnsureSubscriptionActive::class,
         'sub.pro' => \App\Http\Middleware\EnsureProPlan::class,

@@ -233,7 +233,7 @@ class MidtransController extends Controller
     }
 
     /**
-     * Webhook Midtrans (nanti tinggal kita rapikan signature validation)
+     * Webhook Midtrans (dengan signature validation untuk production)
      */
     public function callback(Request $request)
     {
@@ -243,7 +243,26 @@ class MidtransController extends Controller
 
         Log::info('MIDTRANS CALLBACK', $payload);
 
+        // 🔒 VALIDASI SIGNATURE (penting untuk production)
+        $signatureKey = $payload['signature_key'] ?? null;
         $orderId = $payload['order_id'] ?? null;
+        $statusCode = $payload['status_code'] ?? null;
+        $grossAmount = $payload['gross_amount'] ?? null;
+
+        if ($signatureKey && $orderId && $statusCode && $grossAmount) {
+            $serverKey = config('midtrans.server_key');
+            $expectedSignature = hash('sha512', $orderId . $statusCode . $grossAmount . $serverKey);
+
+            if ($signatureKey !== $expectedSignature) {
+                Log::warning('MIDTRANS CALLBACK: Invalid signature', [
+                    'order_id' => $orderId,
+                    'received_signature' => $signatureKey,
+                    'expected_signature' => $expectedSignature,
+                ]);
+                return response()->json(['message' => 'Invalid signature'], 403);
+            }
+        }
+
         $transactionStatus = $payload['transaction_status'] ?? null;
         $paymentType = $payload['payment_type'] ?? null;
 
