@@ -1,10 +1,70 @@
 pipeline {
     agent any
+
+    environment {
+        // Nama image yang akan muncul di Docker Hub
+        IMAGE_NAME = "flixplay-app"
+        // Username Docker Hub Anda
+        DOCKER_HUB_USER = "ayodyawasesa"
+    }
+
     stages {
-        stage('Hello') {
+        stage('Checkout') {
             steps {
-                echo 'My Jenkins Pipeline'
+                // Mengambil kode terbaru dari repositori GitHub
+                checkout scm
             }
+        }
+
+        stage('Prepare .env') {
+            steps {
+                // Menyalin file contoh .env untuk keperluan build di Windows
+                bat 'copy .env.example .env'
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                // Menggunakan usernamePassword karena kredensial Anda bertipe 'Username with password'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
+                                                 usernameVariable: 'DOCKER_USER',
+                                                 passwordVariable: 'DOCKER_PASS')]) {
+                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                // Membangun image Docker dengan tag nomor build Jenkins dan tag 'latest'
+                bat "docker build -t %DOCKER_HUB_USER%/%IMAGE_NAME%:%BUILD_NUMBER% ."
+                bat "docker build -t %DOCKER_HUB_USER%/%IMAGE_NAME%:latest ."
+            }
+        }
+
+        stage('Push to Registry') {
+            steps {
+                // Mengirim image yang telah berhasil dibangun ke Docker Hub
+                bat "docker push %DOCKER_HUB_USER%/%IMAGE_NAME%:%BUILD_NUMBER%"
+                bat "docker push %DOCKER_HUB_USER%/%IMAGE_NAME%:latest"
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                // Menghapus image lokal di server Jenkins agar ruang penyimpanan tidak penuh
+                bat "docker rmi %DOCKER_HUB_USER%/%IMAGE_NAME%:%BUILD_NUMBER%"
+                bat "docker rmi %DOCKER_HUB_USER%/%IMAGE_NAME%:latest"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline sukses! Image FlixPlay sudah tersedia secara online di Docker Hub.'
+        }
+        failure {
+            echo 'Pipeline gagal. Pastikan Token Docker Hub di Jenkins (ID: dockerhub-credentials) sudah benar dan Docker Desktop aktif.'
         }
     }
 }
