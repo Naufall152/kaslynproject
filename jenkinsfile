@@ -3,9 +3,9 @@ pipeline {
 
     environment {
         // Nama image yang akan muncul di Docker Hub
-        IMAGE_NAME = "flixplay-app"
+        IMAGE_NAME = "kaslyn-app"
         // Username Docker Hub Anda
-        DOCKER_HUB_USER = "ayodyawasesa"
+        DOCKER_HUB_USER = "naufal354"
     }
 
     stages {
